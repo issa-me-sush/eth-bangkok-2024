@@ -158,6 +158,31 @@ export default async function handler(
           }
         }
 
+        // Update IPNS with the complete conversation
+        try {
+          const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+          const ipnsResponse = await fetch(`${baseUrl}/api/update-ipns`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              uid,
+              conversations: batchToProcess
+            })
+          });
+
+          if (!ipnsResponse.ok) {
+            throw new Error('IPNS update failed');
+          }
+
+          const ipnsResult = await ipnsResponse.json();
+          console.log('💾 Updated IPNS:', ipnsResult);
+        } catch (error) {
+          console.error('❌ IPNS update error:', error);
+          // Continue processing even if IPNS update fails
+        }
+
         // Remove processed segments
         sessionBuffer.segments = sessionBuffer.segments.slice(BATCH_SIZE);
         sessionBuffer.lastProcessed = Date.now();

@@ -21,9 +21,10 @@ const UserSchema = new mongoose.Schema({
              'food', 'gardening', 'dance', 'tech', 'web3', 'shows-movies', 
              'night-life', 'gaming', 'student'],
       default: []
-    }
+    },
+    conversation_cids: [String]
   }, {
     timestamps: true
   });
   
-export default mongoose.models.User || mongoose.model('User', UserSchema); 
+export default mongoose.models.User || mongoose.model('User', UserSchema);
