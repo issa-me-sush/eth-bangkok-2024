@@ -1,39 +1,104 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import BottomNav from '../components/BottomNav';
-import { CircleArrowRight, Menu, SendHorizonal } from 'lucide-react';
+import { CircleArrowRight, Menu } from 'lucide-react';
+import { createLightNode, createEncoder, createDecoder, waitForRemotePeer } from '@waku/sdk';
+import { Protocols } from '@waku/sdk';
+import protobuf from 'protobufjs';
 
-export default function Home() {
+// Define the message structure using protobuf
+const ChatMessage = new protobuf.Type('ChatMessage')
+  .add(new protobuf.Field('timestamp', 1, 'uint64'))
+  .add(new protobuf.Field('text', 2, 'string'))
+  .add(new protobuf.Field('sender', 3, 'string'))
+  .add(new protobuf.Field('isUser', 4, 'bool'));
+
+const contentTopic = '/friendcircle/1/chat/proto';
+
+export default function Chat() {
   const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      text: "Hey, welcome to the football community!",
-      sender: "John",
-      isUser: false,
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=John"
-    },
-    {
-      id: 2,
-      text: "Thanks! Excited to be here",
-      sender: "You",
-      isUser: true,
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=You"
-    }
-  ]);
+  const [messages, setMessages] = useState([]);
+  const [wakuNode, setWakuNode] = useState(null);
+  const [isConnecting, setIsConnecting] = useState(true);
 
-  const handleSend = () => {
-    if (message.trim()) {
-      setMessages([...messages, {
-        id: messages.length + 1,
-        text: message,
-        sender: "You",
-        isUser: true,
-        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=You"
-      }]);
+  // Initialize Waku node
+  useEffect(() => {
+    const initWaku = async () => {
+      try {
+        // Create and start a Light Node
+        const node = await createLightNode({
+            defaultBootstrap: true,
+            networkConfig: {
+              clusterId: 1,
+              contentTopics: [contentTopic],
+            },
+          });
+        await node.start();
+        await waitForRemotePeer(node, [Protocols.Store, Protocols.Filter, Protocols.LightPush]);
+        
+        setWakuNode(node);
+        setIsConnecting(false);
+
+        // Set up message decoder
+        const decoder = createDecoder(contentTopic);
+        
+        // Subscribe to messages
+        const subscription = await node.filter.subscribe([decoder], (message) => {
+          const messageObj = ChatMessage.decode(message.payload);
+          setMessages(prev => [...prev, {
+            id: messageObj.timestamp.toString(),
+            text: messageObj.text,
+            sender: messageObj.sender,
+            isUser: messageObj.isUser,
+            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${messageObj.sender}`
+          }]);
+        });
+
+        // Cleanup
+        return () => {
+          subscription.unsubscribe();
+          node.stop();
+        };
+      } catch (error) {
+        console.error('Failed to initialize Waku:', error);
+        setIsConnecting(false);
+      }
+    };
+
+    initWaku();
+  }, []);
+
+  const handleSend = async () => {
+    if (!message.trim() || !wakuNode) return;
+
+    try {
+      const encoder = createEncoder({ contentTopic });
+      
+      // Create message payload
+      const protoMessage = ChatMessage.create({
+        timestamp: Date.now(),
+        text: message.trim(),
+        sender: 'You',
+        isUser: true
+      });
+
+      // Encode and send message
+      const payload = ChatMessage.encode(protoMessage).finish();
+      await wakuNode.lightPush.send(encoder, { payload });
+
       setMessage('');
+    } catch (error) {
+      console.error('Failed to send message:', error);
     }
   };
+
+  if (isConnecting) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="animate-pulse">Connecting to Waku network...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col">
@@ -43,11 +108,11 @@ export default function Home() {
       
       <div className='flex justify-between p-5 items-center border-b border-gray-800'>
         <div className='flex items-center'>
-        <img className='w-10 h-10' src='frencircle-dark.png' alt="logo" />
-        <h1 className='md:text-4xl text-2xl font-bold opacity-50'>/football</h1>
+          <img className='w-10 h-10' src='frencircle-dark.png' alt="logo" />
+          <h1 className='md:text-4xl text-2xl font-bold opacity-50'>/football</h1>
         </div>
         <div>
-            <Menu />
+          <Menu />
         </div>
       </div>
 
