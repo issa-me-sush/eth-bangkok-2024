@@ -133,12 +133,29 @@ export default async function handler(
         console.log('🏷️ Generated tags:', newTags);
 
         if (newTags.length > 0) {
-          await User.findOneAndUpdate(
-            { uid },
-            { $addToSet: { tags: { $each: newTags } } },
-            { upsert: true }
-          );
-          console.log('💾 Updated user tags in database');
+          try {
+            // Get the host from the environment or use localhost for development
+            const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+            
+            // Call the separate tag update API with full URL
+            const updateResponse = await fetch(`${baseUrl}/api/update-tags`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                uid,
+                tags: newTags
+              })
+            });
+
+            if (!updateResponse.ok) {
+              console.warn('⚠️ Tag update API call failed');
+            }
+          } catch (error) {
+            console.error('❌ Tag update error:', error);
+            // Continue processing even if update fails
+          }
         }
 
         // Remove processed segments
