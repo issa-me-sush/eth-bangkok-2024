@@ -33,7 +33,7 @@ export default async function handler(
       walletAddress,
       isSetupCompleted: true
     });
-
+    console.log("user registeration successful" , user)
     return res.status(200).json({ 
       success: true, 
       message: 'User registered successfully' 

@@ -1,30 +1,46 @@
 import { useState, useEffect } from 'react'
 import Head from 'next/head'
 import BottomNav from '../components/BottomNav'
+import { usePrivy } from '@privy-io/react-auth'
 
 export default function Home() {
-  const communities = [
-    {
-      id: 1,
-      name: 'Football Community',
-      image: 'football.jpg', 
-    },
-    {
-      id: 2,
-      name: 'Anime Community',
-      image: 'football.jpg',
-    },
-    {
-      id: 3,
-      name: 'Gaming Community',
-      image: 'football.jpg',
-    },
-    {
-        id: 4,
-        name: 'Gaming Community',
-        image: 'football.jpg',
+  const { user } = usePrivy();
+  const [communities, setCommunities] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchUserTags = async () => {
+      if (user?.wallet?.address) {
+        try {
+          console.log('🔍 Fetching tags for wallet:', user.wallet.address);
+          const response = await fetch(`/api/get-tags?walletAddress=${user.wallet.address}`);
+          
+          if (!response.ok) {
+            throw new Error('Failed to fetch tags');
+          }
+          
+          const data = await response.json();
+          console.log('✅ Fetched tags:', data.tags);
+          
+          // Convert tags to communities
+          const tagCommunities = data.tags.map((tag, index) => ({
+            id: index + 1,
+            name: `${tag.charAt(0).toUpperCase() + tag.slice(1)} Community`, // Capitalize first letter
+            image: `${tag}.png`,
+            tag: tag
+          }));
+          
+          setCommunities(tagCommunities);
+        } catch (error) {
+          console.error('❌ Error fetching tags:', error);
+        } finally {
+          setLoading(false);
+        }
       }
-  ];
+    };
+
+    fetchUserTags();
+  }, [user?.wallet?.address]);
 
   return (
     <div className="">
@@ -43,28 +59,42 @@ export default function Home() {
       <div className='p-10 mb-20'>
         <h1 className='md:text-4xl text-2xl font-bold mb-10'>my circles</h1>
         
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
-          {communities.map((community) => (
-            <div 
-              key={community.id}
-              className='relative h-48 rounded-lg overflow-hidden cursor-pointer hover:scale-105 transition-transform duration-200'
-            >
+        {loading ? (
+          <div className="text-center text-gray-500">Loading communities...</div>
+        ) : communities.length > 0 ? (
+          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
+            {communities.map((community) => (
               <div 
-                className='absolute inset-0 bg-cover bg-center grayscale'
-                style={{ backgroundImage: `url(${community.image})` }}
-              />
-              <div className='absolute inset-0 bg-gradient-to-t from-black/70 to-transparent' />
-              <div className='absolute bottom-4 left-4 text-white'>
-               <h1 className='text-xl font-bold'>
-                 {community.name}
-                </h1>
-              <div className='flex space-x-3 text-xs mt-3'>
-                <div className='bg-white text-black rounded-full p-1 px-2' >member</div>
+                key={community.id}
+                className='relative h-48 rounded-lg overflow-hidden cursor-pointer hover:scale-105 transition-transform duration-200'
+              >
+                <div 
+                  className='absolute inset-0 bg-cover bg-center grayscale'
+                  style={{ 
+                    backgroundImage: `url(${community.image})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center'
+                  }}
+                />
+                <div className='absolute inset-0 bg-gradient-to-t from-black/70 to-transparent' />
+                <div className='absolute bottom-4 left-4 text-white'>
+                  <h1 className='text-xl font-bold'>
+                    {community.name}
+                  </h1>
+                  <div className='flex space-x-3 text-xs mt-3'>
+                    <div className='bg-white text-black rounded-full p-1 px-2'>
+                      member
+                    </div>
+                  </div>
+                </div>
               </div>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center text-gray-500">
+            No communities found. Join some conversations to discover your interests!
+          </div>
+        )}
       </div>
       
       <BottomNav />

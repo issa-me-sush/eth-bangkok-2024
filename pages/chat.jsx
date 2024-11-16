@@ -64,11 +64,11 @@ export default function Chat() {
         });
 
         // Subscribe to messages
-        await subscription.subscribe([decoder], callback);
+        await subscription?.subscribe([decoder], callback);
 
         // Cleanup
         return () => {
-          subscription.unsubscribe([contentTopic]);
+          subscription?.unsubscribe([contentTopic]);
           node.stop();
         };
       } catch (error) {
