@@ -37,7 +37,7 @@ export default function Chat() {
         console.log('Waiting for peers...');
                 await waitForRemotePeer(node, [Protocols.LightPush,Protocols.Filter, Protocols.Store])
         console.log('Connected to peers');
-        console.log(await ln.libp2p.peerStore.all())
+        console.log(await node.libp2p.peerStore.all())
         setWakuNode(node);
         setIsConnecting(false);
 
