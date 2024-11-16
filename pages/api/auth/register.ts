@@ -1,4 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
+import dbConnect from '../../../utils/dbConnect';
+import User from '../../../models/User';
 
 type Data = {
   success: boolean
@@ -15,6 +17,7 @@ export default async function handler(
   }
 
   try {
+    await dbConnect();
     const { walletAddress, uid } = req.body
 
     if (!walletAddress || !uid) {
@@ -24,17 +27,26 @@ export default async function handler(
       })
     }
 
+    // Create new user
+    const user = await User.create({
+      uid,
+      walletAddress,
+      isSetupCompleted: true
+    });
 
-    // 1. Store the wallet address and UID mapping in your database
-    // 2. Return success response to setup_completed_url
-
-   
     return res.status(200).json({ 
       success: true, 
       message: 'User registered successfully' 
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Registration error:', error)
+    // Handle duplicate key errors
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        error: 'User already exists'
+      })
+    }
     return res.status(500).json({ 
       success: false, 
       error: 'Failed to register user' 

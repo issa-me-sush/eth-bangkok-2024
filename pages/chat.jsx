@@ -2,11 +2,10 @@ import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import BottomNav from '../components/BottomNav';
 import { CircleArrowRight, Menu } from 'lucide-react';
-import { createLightNode, createEncoder, createDecoder, waitForRemotePeer } from '@waku/sdk';
-import { Protocols } from '@waku/sdk';
+import { createLightNode, createEncoder, createDecoder, Protocols, waitForRemotePeer, IEncoder } from '@waku/sdk';
 import protobuf from 'protobufjs';
 
-// Define the message structure using protobuf
+// Define message structure using Protobuf
 const ChatMessage = new protobuf.Type('ChatMessage')
   .add(new protobuf.Field('timestamp', 1, 'uint64'))
   .add(new protobuf.Field('text', 2, 'string'))
@@ -21,30 +20,34 @@ export default function Chat() {
   const [wakuNode, setWakuNode] = useState(null);
   const [isConnecting, setIsConnecting] = useState(true);
 
-  // Initialize Waku node
   useEffect(() => {
     const initWaku = async () => {
       try {
-        // Create and start a Light Node
+        // Create and start a Light Node with auto sharding
+        console.log('Creating node...');
         const node = await createLightNode({
+            networkConfig: {clusterId: 1, shards: [0]},
             defaultBootstrap: true,
-            networkConfig: {
-              clusterId: 1,
-              contentTopics: [contentTopic],
-            },
-          });
+            pingKeepAlive: 60,
+            //bootstrapPeers: bootstrapNodes,
+            numPeersToUse: 3,
+        })
+        console.log('Starting node...');
         await node.start();
-        await waitForRemotePeer(node, [Protocols.Store, Protocols.Filter, Protocols.LightPush]);
-        
+        console.log('Waiting for peers...');
+                await waitForRemotePeer([Protocols.LightPush,Protocols.Filter, Protocols.Store])
+        console.log('Connected to peers');
         setWakuNode(node);
         setIsConnecting(false);
 
-        // Set up message decoder
+        // Create decoder and subscription
         const decoder = createDecoder(contentTopic);
         
-        // Subscribe to messages
-        const subscription = await node.filter.subscribe([decoder], (message) => {
-          const messageObj = ChatMessage.decode(message.payload);
+        // Message callback
+        const callback = (wakuMessage) => {
+          if (!wakuMessage.payload) return;
+          
+          const messageObj = ChatMessage.decode(wakuMessage.payload);
           setMessages(prev => [...prev, {
             id: messageObj.timestamp.toString(),
             text: messageObj.text,
@@ -52,11 +55,19 @@ export default function Chat() {
             isUser: messageObj.isUser,
             avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${messageObj.sender}`
           }]);
+        };
+
+        // Create subscription
+        const { subscription } = await node.filter.createSubscription({ 
+          contentTopics: [contentTopic] 
         });
+
+        // Subscribe to messages
+        await subscription.subscribe([decoder], callback);
 
         // Cleanup
         return () => {
-          subscription.unsubscribe();
+          subscription.unsubscribe([contentTopic]);
           node.stop();
         };
       } catch (error) {
@@ -73,7 +84,7 @@ export default function Chat() {
 
     try {
       const encoder = createEncoder({ contentTopic });
-      
+      console.log('Encoder created:', encoder);
       // Create message payload
       const protoMessage = ChatMessage.create({
         timestamp: Date.now(),
@@ -81,10 +92,13 @@ export default function Chat() {
         sender: 'You',
         isUser: true
       });
-
-      // Encode and send message
-      const payload = ChatMessage.encode(protoMessage).finish();
-      await wakuNode.lightPush.send(encoder, { payload });
+      console.log('Message created:', protoMessage);
+      // Serialize and send message
+      const serializedMessage = ChatMessage.encode(protoMessage).finish();
+      console.log('Sending message...');
+      await wakuNode.lightPush.send(encoder, {
+        payload: serializedMessage,
+      });
 
       setMessage('');
     } catch (error) {
