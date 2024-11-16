@@ -26,9 +26,9 @@ export default function Profile() {
         <div className='border border-opacity-20 border-white rounded-lg p-5 mt-10'>
         <h1 className='md:text-4xl text-xl font-bold opacity-50 mb-3'>interests</h1>
         <div className='flex flex-wrap gap-2'>
-        <div className='bg-white bg-opacity-20 p-1 px-2 rounded-full text-xs'>Football</div>
-        <div className='bg-white bg-opacity-20 p-1 px-2 rounded-full text-xs'>Therapy</div>
-        <div className='bg-white bg-opacity-20 p-1 px-2 rounded-full text-xs'>Yoga</div>
+        <div className='bg-white bg-opacity-20 p-1 px-2 rounded-full text-xs'>football</div>
+        <div className='bg-white bg-opacity-20 p-1 px-2 rounded-full text-xs'>therapy</div>
+        <div className='bg-white bg-opacity-20 p-1 px-2 rounded-full text-xs'>yoga</div>
         </div> 
         </div>
 </div>
