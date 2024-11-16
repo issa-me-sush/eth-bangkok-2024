@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
-import { LoginButton } from '@/components/auth/Login'
+import { LoginButton  } from '@/components/auth/Login'
 import { useRouter } from 'next/router'
 
 export default function Index() {

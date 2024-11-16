@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import Head from 'next/head'
 import BottomNav from '../components/BottomNav'
-import { usePrivy } from '@privy-io/react-auth'
+import { usePrivy, useLogout } from '@privy-io/react-auth'
 
 export default function Home() {
   const { user } = usePrivy();
+  const { logout } = useLogout();
   const [communities, setCommunities] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -22,10 +23,9 @@ export default function Home() {
           const data = await response.json();
           console.log('✅ Fetched tags:', data.tags);
           
-          // Convert tags to communities
           const tagCommunities = data.tags.map((tag, index) => ({
             id: index + 1,
-            name: `${tag.charAt(0).toUpperCase() + tag.slice(1)} Community`, // Capitalize first letter
+            name: `${tag.charAt(0).toUpperCase() + tag.slice(1)} Community`,
             image: `${tag}.png`,
             tag: tag
           }));
@@ -48,14 +48,21 @@ export default function Home() {
         <title>FriendCircle</title>
       </Head>
       <div>
-        <div className='flex justify-center md:justify-between p-5 items-center'>
+        <div className='flex justify-between p-5 items-center'>
           <div className='hidden md:flex space-x-10'>
             <h1>team</h1>
             <h1>github</h1>
           </div>
           <img className='w-10 h-10' src='frencircle-dark.png' />
+          <button 
+            onClick={logout}
+            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors duration-200"
+          >
+            Logout
+          </button>
         </div>
       </div>
+      
       <div className='p-10 mb-20'>
         <h1 className='md:text-4xl text-2xl font-bold mb-10'>my circles</h1>
         
