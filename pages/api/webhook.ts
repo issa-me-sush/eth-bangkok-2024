@@ -1,35 +1,88 @@
-import type { NextApiRequest, NextApiResponse } from 'next'
-import dbConnect from '../../utils/dbConnect'
-import User from '../../models/User'
+import { NextApiRequest, NextApiResponse } from 'next';
+import User from '@/models/User';
+import dbConnect from '@/utils/dbConnect';
 
-// Store last 100 messages in memory
-const messageBuffer: any[] = []
+interface Segment {
+  text: string;
+  speaker: string;
+  speaker_id: number;
+  is_user: boolean;
+  person_id: null | string;
+  start: number;
+  end: number;
+}
 
-async function analyzeContentForTags(content: string): Promise<string[]> {
-  console.log('🏷️ Starting tag analysis for content:', content.substring(0, 100) + '...');
+interface SessionBuffer {
+  segments: Segment[];
+  lastProcessed: number;
+}
+
+// Store sessions and their segments
+const sessionBuffers: Map<string, SessionBuffer> = new Map();
+const BATCH_SIZE = 30;
+
+async function analyzeContentForTags(segments: Segment[]): Promise<string[]> {
+  if (!Array.isArray(segments) || segments.length === 0) return [];
+  
   try {
+    const fullConversation = segments
+      .filter(s => s && s.text?.trim())
+      .map(s => s.text)
+      .join(' ');
+
+    console.log('📝 Full conversation to analyze:', fullConversation);
+    
     const response = await fetch("https://api.red-pill.ai/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${process.env.NEXT_PUBLIC_REDPILL_API_KEY}`,
+        "Authorization": `Bearer ${process.env.REDPILL_API_KEY}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
         "model": "gpt-4o",
-        "messages": [{
-          "role": "user",
-          "content": `Analyze this conversation and return ONLY an array of relevant tags from this list: anime, football, cricket, art, therapy, music, travel, food, gardening, dance, tech, web3, shows-movies, night-life, gaming, student. 
-          Content: ${content}`
-        }]
+        "messages": [
+          {
+            "role": "system",
+            "content": `You are a precise tag analyzer. Return ONLY a JSON array of relevant tags from this list: ["anime", "football", "cricket", "art", "therapy", "music", "travel", "food", "gardening", "dance", "tech", "web3", "shows-movies", "night-life", "gaming", "student"]. Only include tags that are strongly discussed, ignore casual mentions. If none match, return empty array []`
+          },
+          {
+            "role": "user",
+            "content": fullConversation
+          }
+        ]
       })
     });
 
     const data = await response.json();
-    const tags = JSON.parse(data.choices[0].message.content);
-    console.log('✅ Tags analyzed successfully:', tags);
-    return tags;
+    console.log('🤖 Red Pill API raw response:', JSON.stringify(data, null, 2));
+
+    // Extract content from the correct path in response
+    const aiContent = data.choices[0].message.content;
+    console.log('🎯 AI content:', aiContent);
+
+    let tags: string[] = [];
+    try {
+      // If the AI returned a proper array string, parse it
+      if (aiContent.trim().startsWith('[') && aiContent.trim().endsWith(']')) {
+        tags = JSON.parse(aiContent);
+      } else {
+        console.warn('⚠️ AI response not in expected array format:', aiContent);
+        return [];
+      }
+    } catch (parseError) {
+      console.error('⚠️ Failed to parse tags:', parseError);
+      return [];
+    }
+
+    // Validate tags against allowed list
+    const validTags = tags.filter(tag => 
+      User.schema.paths.tags.options.enum.includes(tag)
+    );
+
+    console.log('✅ Final validated tags:', validTags);
+    return validTags;
   } catch (error) {
-    console.error('❌ Tag analysis error:', error);
+    console.error('❌ AI Tag analysis error:', error);
     return [];
   }
 }
@@ -40,65 +93,76 @@ export default async function handler(
 ) {
   console.log('📥 Webhook received:', req.method, 'request');
   
-  // Set CORS and cache control headers
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST')
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate')
-  res.setHeader('Pragma', 'no-cache')
-  res.setHeader('Expires', '0')
-
   if (req.method === 'POST') {
     try {
       const { uid } = req.query;
-      console.log('👤 Processing request for UID:', uid);
+      const { segments, session_id } = req.body;
       
-      const memory = req.body;
-      
-      if (!uid) {
-        return res.status(400).json({ error: 'UID is required' });
-      }
-
-      await dbConnect();
-
-      // Analyze content for tags
-      const contentToAnalyze = `${memory.transcript} ${memory.structured.overview}`;
-      const newTags = await analyzeContentForTags(contentToAnalyze);
-
-      console.log('💾 Updating user tags:', newTags);
-      await User.findOneAndUpdate(
-        { uid },
-        { $addToSet: { tags: { $each: newTags } } },
-        { upsert: false }
-      );
-
-      // Store in message buffer with uid
-      messageBuffer.push({
-        ...memory,
+      console.log('🎯 Processing message:', {
         uid,
-        timestamp: Date.now()
+        session_id,
+        segmentCount: segments?.length,
+        text: segments?.[0]?.text
       });
 
-      console.log('📦 Message added to buffer. Current size:', messageBuffer.length);
-      
-      // Keep only last 100 messages
-      if (messageBuffer.length > 100) {
-        messageBuffer.shift();
+      // Skip empty segments
+      if (!segments?.[0]?.text?.trim()) {
+        return res.status(200).json({ status: 'success', message: 'Empty segment skipped' });
       }
 
-      return res.status(200).json({ status: 'success', tags: newTags });
+      // Get or create session buffer
+      let sessionBuffer = sessionBuffers.get(session_id);
+      if (!sessionBuffer) {
+        sessionBuffer = {
+          segments: [],
+          lastProcessed: Date.now()
+        };
+        sessionBuffers.set(session_id, sessionBuffer);
+      }
+
+      // Add new segments
+      sessionBuffer.segments.push(...segments);
+      console.log('📦 Session buffer size:', sessionBuffer.segments.length);
+
+      // Process if we have enough segments
+      if (sessionBuffer.segments.length >= BATCH_SIZE) {
+        console.log('🔄 Processing batch of messages');
+        const batchToProcess = sessionBuffer.segments.slice(0, BATCH_SIZE);
+        
+        const newTags = await analyzeContentForTags(batchToProcess);
+        console.log('🏷️ Generated tags:', newTags);
+
+        if (newTags.length > 0) {
+          await User.findOneAndUpdate(
+            { uid },
+            { $addToSet: { tags: { $each: newTags } } },
+            { upsert: true }
+          );
+          console.log('💾 Updated user tags in database');
+        }
+
+        // Remove processed segments
+        sessionBuffer.segments = sessionBuffer.segments.slice(BATCH_SIZE);
+        sessionBuffer.lastProcessed = Date.now();
+      }
+
+      // Cleanup old sessions (keep last 10)
+      if (sessionBuffers.size > 10) {
+        const oldestKey = sessionBuffers.keys().next().value;
+        sessionBuffers.delete(oldestKey);
+      }
+
+      return res.status(200).json({ 
+        status: 'success',
+        bufferedCount: sessionBuffer.segments.length,
+        remainingUntilProcess: BATCH_SIZE - sessionBuffer.segments.length
+      });
+
     } catch (error) {
       console.error('❌ Error:', error);
       return res.status(500).json({ error: 'Internal error' });
     }
   }
 
-  if (req.method === 'GET') {
-    const { uid } = req.query;
-    console.log('🔍 Retrieving messages for UID:', uid || 'all');
-    // Return messages filtered by uid if provided
-    const messages = uid 
-      ? messageBuffer.filter(msg => msg.uid === uid)
-      : messageBuffer;
-    return res.status(200).json(messages);
-  }
-} 
+  return res.status(405).json({ error: 'Method not allowed' });
+}
