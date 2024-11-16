@@ -166,7 +166,10 @@ export default async function handler(
       // Cleanup old sessions (keep last 10)
       if (sessionBuffers.size > 10) {
         const oldestKey = sessionBuffers.keys().next().value;
-        sessionBuffers.delete(oldestKey);
+        if (oldestKey) {
+          sessionBuffers.delete(oldestKey);
+          console.log('🧹 Cleaned up old session:', oldestKey);
+        }
       }
 
       return res.status(200).json({ 
