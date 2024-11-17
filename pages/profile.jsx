@@ -8,6 +8,8 @@ export default function Profile() {
   const { user } = usePrivy();
   const [tags, setTags] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [userCids, setUserCids] = useState([]);
+  const [downloadLoading, setDownloadLoading] = useState(false);
 
   useEffect(() => {
     const fetchTags = async () => {
@@ -33,6 +35,50 @@ export default function Profile() {
 
     fetchTags();
   }, [user?.wallet?.address]);
+
+  const handleDownload = async () => {
+    if (!user?.wallet?.address) return;
+    setDownloadLoading(true);
+    
+    try {
+      // First fetch CIDs for this user
+      const response = await fetch(`/api/get-cids?walletAddress=${user.wallet.address}`);
+      const data = await response.json();
+      
+      if (!data.cids || !Array.isArray(data.cids)) {
+        console.error('Invalid CIDs response:', data);
+        throw new Error('No CIDs found');
+      }
+
+      console.log('Fetched CIDs:', data.cids);
+      
+      // Fetch content from each CID
+      const contents = await Promise.all(
+        data.cids.map(cid => 
+          fetch(`https://${cid}.ipfs.w3s.link/`)
+            .then(res => res.text())
+        )
+      );
+
+      // Combine all contents
+      const combinedContent = contents.join('\n\n--- New Entry ---\n\n');
+      
+      // Create and trigger download
+      const blob = new Blob([combinedContent], { type: 'text/plain' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `friendcircle-data-${user.wallet.address.slice(0,6)}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Download failed:', error);
+    } finally {
+      setDownloadLoading(false);
+    }
+  };
 
   return (
     <div className="">
@@ -77,7 +123,13 @@ export default function Profile() {
         </div>
         <div className='border border-opacity-20 border-white rounded-lg p-5 mt-10'>
           <h1 className='md:text-4xl text-xl font-bold opacity-50 mb-3'>user data</h1>
-          <button className='bg-white text-black px-4 py-2 rounded-full'>download from storcha</button>
+          <button 
+            onClick={handleDownload}
+            disabled={downloadLoading}
+            className='bg-white text-black px-4 py-2 rounded-full disabled:opacity-50'
+          >
+            {downloadLoading ? 'Downloading...' : 'download from storacha'}
+          </button>
         </div>
       </div>
       <BottomNav />
