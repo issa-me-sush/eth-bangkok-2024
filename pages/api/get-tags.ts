@@ -16,35 +16,24 @@ export default async function handler(
     const { walletAddress } = req.query;
 
     if (!walletAddress) {
-      return res.status(400).json({ error: 'Wallet address is required' });
+      return res.status(200).json({ tags: [] });
     }
 
     console.log('🔍 Fetching tags for wallet:', walletAddress);
 
     const user = await User.findOne(
       { walletAddress: walletAddress.toString() },
-      'tags -_id' // Only return tags field, exclude _id
+      'tags -_id'
     );
 
-    if (!user || !user.tags || user.tags.length === 0) {
-      console.log('⚠️ No tags found for wallet:', walletAddress);
-      return res.status(200).json({ 
-        tags: [],
-        message: 'No tags found for this user'
-      });
-    }
-
-    console.log('✅ Found tags:', user.tags);
     return res.status(200).json({ 
-      tags: user.tags,
-      message: 'Tags retrieved successfully'
+      tags: user?.tags || []
     });
 
   } catch (error) {
-    console.error('❌ Error fetching tags:', error);
-    return res.status(500).json({ 
-      error: 'Failed to fetch tags',
-      message: error instanceof Error ? error.message : 'Unknown error'
+    console.error('❌ Error:', error);
+    return res.status(200).json({ 
+      tags: []
     });
   }
 }
