@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import BottomNav from '../components/BottomNav';
-import { CircleArrowRight, Menu } from 'lucide-react';
+import { CircleArrowRight, Menu, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { createLightNode, createEncoder, createDecoder, Protocols, waitForRemotePeer, IEncoder } from '@waku/sdk';
 import protobuf from 'protobufjs';
 import { usePrivy } from '@privy-io/react-auth';
@@ -35,6 +35,7 @@ export default function Chat() {
   const [messages, setMessages] = useState([]);
   const [wakuNode, setWakuNode] = useState(null);
   const [isConnecting, setIsConnecting] = useState(true);
+  const [votes, setVotes] = useState({});
 
   useEffect(() => {
     const initWaku = async () => {
@@ -123,6 +124,42 @@ export default function Chat() {
     }
   };
 
+  const handleVote = async (messageId, voteType) => {
+    // Optimistically update UI
+    setVotes(prev => ({
+      ...prev,
+      [messageId]: {
+        ...prev[messageId],
+        [voteType]: !prev[messageId]?.[voteType]
+      }
+    }));
+
+    try {
+      // Send to backend
+      await fetch('/api/vote', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messageId,
+          voteType,
+          value: !votes[messageId]?.[voteType]
+        })
+      });
+    } catch (error) {
+      console.error('Failed to save vote:', error);
+      // Revert on error
+      setVotes(prev => ({
+        ...prev,
+        [messageId]: {
+          ...prev[messageId],
+          [voteType]: !prev[messageId]?.[voteType]
+        }
+      }));
+    }
+  };
+
   if (isConnecting) {
     return (
       <div className="h-screen flex flex-col space-y-4 items-center justify-center animate-pulse">
@@ -152,19 +189,52 @@ export default function Chat() {
 
       <div className='flex-1 overflow-y-auto p-4 pb-32 space-y-4'>
         {messages.map((msg) => (
-          <div key={msg.id} className={`flex ${msg.sender === user?.wallet?.address ? 'justify-end' : 'justify-start'}`}>
-            <div className={`flex ${msg.sender === user?.wallet?.address ? 'flex-row-reverse' : 'flex-row'} items-end gap-2 max-w-[80%]`}>
+          <div key={msg.id} className={`flex ${msg.sender == user?.wallet.address ? 'justify-end' : 'justify-start'}`}>
+            <div className={`flex ${msg.sender == user?.wallet.address ? 'flex-row-reverse' : 'flex-row'} items-end gap-2 max-w-[80%]`}>
               <img 
                 src={msg.avatar} 
                 alt={msg.sender} 
                 className="w-8 h-8 rounded-full"
               />
-              <div className={`px-4 py-2 rounded-2xl ${
-                msg.isUser 
-                  ? 'bg-white text-black' 
-                  : 'bg-white bg-opacity-15 text-white'
-              }`}>
-                <p>{msg.text}</p>
+              <div className="flex flex-col gap-1">
+                <div className={`px-4 py-2 rounded-2xl ${
+                  msg.isUser 
+                    ? 'bg-white text-black' 
+                    : 'bg-white bg-opacity-15 text-white'
+                }`}>
+                  <p>{msg.text}</p>
+                </div>
+                
+                {!msg.isUser && (
+                  <div className="flex gap-2 ml-2">
+                    <button 
+                      onClick={() => handleVote(msg.id, 'upvote')}
+                      className={`p-1 rounded-full transition-colors ${
+                        votes[msg.id]?.upvote 
+                          ? 'bg-white bg-opacity-15' 
+                          : 'hover:bg-white hover:bg-opacity-5'
+                      }`}
+                    >
+                      <ThumbsUp 
+                        size={14} 
+                        className={votes[msg.id]?.upvote ? 'fill-white' : ''}
+                      />
+                    </button>
+                    <button 
+                      onClick={() => handleVote(msg.id, 'downvote')}
+                      className={`p-1 rounded-full transition-colors ${
+                        votes[msg.id]?.downvote 
+                          ? 'bg-white bg-opacity-15' 
+                          : 'hover:bg-white hover:bg-opacity-5'
+                      }`}
+                    >
+                      <ThumbsDown 
+                        size={14} 
+                        className={votes[msg.id]?.downvote ? 'fill-white' : ''}
+                      />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
