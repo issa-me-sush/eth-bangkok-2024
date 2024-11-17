@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import BottomNav from '../components/BottomNav';
-import { CircleArrowRight, Menu, ThumbsUp, ThumbsDown, ArrowBigDown, ArrowBigUp, ChevronUp, ChevronDown } from 'lucide-react';
+import { CircleArrowRight, Menu, ThumbsUp, ThumbsDown, ArrowBigDown, ArrowBigUp, ChevronUp, ChevronDown, Coins } from 'lucide-react';
 import { createLightNode, createEncoder, createDecoder, Protocols, waitForRemotePeer, IEncoder } from '@waku/sdk';
 import protobuf from 'protobufjs';
 import { usePrivy } from '@privy-io/react-auth';
@@ -184,7 +184,13 @@ export default function Chat() {
           </h1>
         </div>
         <div>
+          <div className='flex items-center space-x-5'>
+          <div className='bg-white text-black p-3 items-center flex space-x-2'>
+            <Coins />
+            <h1>7</h1>
+          </div>
           <Menu />
+          </div>
         </div>
       </div>
 
