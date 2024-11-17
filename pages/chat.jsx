@@ -4,6 +4,7 @@ import BottomNav from '../components/BottomNav';
 import { CircleArrowRight, Menu } from 'lucide-react';
 import { createLightNode, createEncoder, createDecoder, Protocols, waitForRemotePeer, IEncoder } from '@waku/sdk';
 import protobuf from 'protobufjs';
+import { usePrivy } from '@privy-io/react-auth';
 
 // Define message structure using Protobuf
 const ChatMessage = new protobuf.Type('ChatMessage')
@@ -15,6 +16,9 @@ const ChatMessage = new protobuf.Type('ChatMessage')
 const contentTopic = '/friendcircle/1/chat/proto';
 
 export default function Chat() {
+
+    const { user } = usePrivy();
+
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
   const [wakuNode, setWakuNode] = useState(null);
@@ -84,13 +88,13 @@ export default function Chat() {
     if (!message.trim() || !wakuNode) return;
 
     try {
-      const encoder = createEncoder({ contentTopic });
+      const encoder = createEncoder({ contentTopic, ephemeral: true });
       console.log('Encoder created:', encoder);
       // Create message payload
       const protoMessage = ChatMessage.create({
         timestamp: Date.now(),
         text: message.trim(),
-        sender: 'You',
+        sender: user.wallet.address,
         isUser: true
       });
       console.log('Message created:', protoMessage);
@@ -133,7 +137,7 @@ export default function Chat() {
 
       <div className='flex-1 overflow-y-auto p-4 pb-32 space-y-4'>
         {messages.map((msg) => (
-          <div key={msg.id} className={`flex ${msg.isUser ? 'justify-end' : 'justify-start'}`}>
+          <div key={msg.id} className={`flex ${msg.sender === user.wallet.address ? 'justify-end' : 'justify-start'}`}>
             <div className={`flex ${msg.isUser ? 'flex-row-reverse' : 'flex-row'} items-end gap-2 max-w-[80%]`}>
               <img 
                 src={msg.avatar} 

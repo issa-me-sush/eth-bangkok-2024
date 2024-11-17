@@ -1,6 +1,7 @@
 import { usePrivy } from '@privy-io/react-auth';
 import { useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
+import Link from 'next/link';
 
 export function LoginButton() {
   const { login, authenticated, user, ready } = usePrivy();
@@ -49,11 +50,13 @@ export function LoginButton() {
 
   if (authenticated) {
     return (
-      <div className="flex items-center gap-2">
-        <span className="text-sm">
-          Welcome, {user?.wallet?.address?.slice(0, 6)}...{user?.wallet?.address?.slice(-4)}
-        </span>
-      </div>
+      <Link href='/home'>
+      <div
+      className='bg-white text-black px-4 py-2 rounded-full'
+      >
+      Dashboard
+    </div>
+      </Link>
     );
   }
 
