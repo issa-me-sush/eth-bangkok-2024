@@ -8,7 +8,7 @@ export default function Home() {
   const { logout } = useLogout();
   const [communities, setCommunities] = useState([]);
   const [loading, setLoading] = useState(true);
-
+console.log(user?.wallet?.address)
   useEffect(() => {
     const fetchUserTags = async () => {
       if (user?.wallet?.address) {
