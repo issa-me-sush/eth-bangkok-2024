@@ -5,6 +5,7 @@ import { CircleArrowRight, Menu } from 'lucide-react';
 import { createLightNode, createEncoder, createDecoder, Protocols, waitForRemotePeer, IEncoder } from '@waku/sdk';
 import protobuf from 'protobufjs';
 import { usePrivy } from '@privy-io/react-auth';
+import { useRouter } from 'next/router';
 
 // Define message structure using Protobuf
 const ChatMessage = new protobuf.Type('ChatMessage')
@@ -13,11 +14,22 @@ const ChatMessage = new protobuf.Type('ChatMessage')
   .add(new protobuf.Field('sender', 3, 'string'))
   .add(new protobuf.Field('isUser', 4, 'bool'));
 
-const contentTopic = '/friendcircle/1/chat/proto';
-
 export default function Chat() {
+  const router = useRouter();
+  
+  // Add check for router readiness
+  if (!router.isReady) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="animate-pulse">Loading...</div>
+      </div>
+    );
+  }
 
-    const { user } = usePrivy();
+  const { tag } = router.query;
+  const contentTopic = `/friendcircle/1/${tag || 'default'}/proto`;
+  
+  const { user } = usePrivy();
 
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
@@ -58,7 +70,7 @@ export default function Chat() {
             text: messageObj.text,
             sender: messageObj.sender,
             isUser: messageObj.isUser,
-            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${messageObj.sender}`
+            avatar: `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${user?.wallet?.address}`
           }]);
         };
 
@@ -94,7 +106,7 @@ export default function Chat() {
       const protoMessage = ChatMessage.create({
         timestamp: Date.now(),
         text: message.trim(),
-        sender: user.wallet.address,
+        sender: user?.wallet?.address,
         isUser: true
       });
       console.log('Message created:', protoMessage);
@@ -113,8 +125,9 @@ export default function Chat() {
 
   if (isConnecting) {
     return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="animate-pulse">Connecting to Waku network...</div>
+      <div className="h-screen flex flex-col space-y-4 items-center justify-center animate-pulse">
+        <img className='w-10 h-10 animate-spin' src='frencircle-dark.png' alt="logo" />
+        <div className="">Connecting to Waku network...</div>
       </div>
     );
   }
@@ -122,13 +135,15 @@ export default function Chat() {
   return (
     <div className="h-screen flex flex-col">
       <Head>
-        <title>FriendCircle</title>
+        <title>FriendCircle - {tag}</title>
       </Head>
       
       <div className='flex justify-between p-5 items-center border-b border-gray-800'>
         <div className='flex items-center'>
           <img className='w-10 h-10' src='frencircle-dark.png' alt="logo" />
-          <h1 className='md:text-4xl text-2xl font-bold opacity-50'>/football</h1>
+          <h1 className='md:text-4xl text-2xl font-bold opacity-50'>
+            /{tag || 'default'}
+          </h1>
         </div>
         <div>
           <Menu />
@@ -137,8 +152,8 @@ export default function Chat() {
 
       <div className='flex-1 overflow-y-auto p-4 pb-32 space-y-4'>
         {messages.map((msg) => (
-          <div key={msg.id} className={`flex ${msg.sender === user.wallet.address ? 'justify-end' : 'justify-start'}`}>
-            <div className={`flex ${msg.isUser ? 'flex-row-reverse' : 'flex-row'} items-end gap-2 max-w-[80%]`}>
+          <div key={msg.id} className={`flex ${msg.sender === user?.wallet?.address ? 'justify-end' : 'justify-start'}`}>
+            <div className={`flex ${msg.sender === user?.wallet?.address ? 'flex-row-reverse' : 'flex-row'} items-end gap-2 max-w-[80%]`}>
               <img 
                 src={msg.avatar} 
                 alt={msg.sender} 
@@ -146,8 +161,8 @@ export default function Chat() {
               />
               <div className={`px-4 py-2 rounded-2xl ${
                 msg.isUser 
-                  ? 'bg-white text-black rounded-br-none' 
-                  : 'bg-white bg-opacity-15 text-white rounded-bl-none'
+                  ? 'bg-white text-black' 
+                  : 'bg-white bg-opacity-15 text-white'
               }`}>
                 <p>{msg.text}</p>
               </div>
