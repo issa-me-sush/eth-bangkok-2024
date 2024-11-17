@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import BottomNav from '../components/BottomNav';
-import { CircleArrowRight, Menu, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { CircleArrowRight, Menu, ThumbsUp, ThumbsDown, ArrowBigDown, ArrowBigUp, ChevronUp, ChevronDown } from 'lucide-react';
 import { createLightNode, createEncoder, createDecoder, Protocols, waitForRemotePeer, IEncoder } from '@waku/sdk';
 import protobuf from 'protobufjs';
 import { usePrivy } from '@privy-io/react-auth';
@@ -36,6 +36,7 @@ export default function Chat() {
   const [wakuNode, setWakuNode] = useState(null);
   const [isConnecting, setIsConnecting] = useState(true);
   const [votes, setVotes] = useState({});
+  const [voting, setVoting] = useState("")
 
   useEffect(() => {
     const initWaku = async () => {
@@ -203,6 +204,15 @@ export default function Chat() {
                     : 'bg-white bg-opacity-15 text-white'
                 }`}>
                   <p>{msg.text}</p>
+                  {msg.sender != user?.wallet.address && <div className='flex space-x-1'>
+                    <button onClick={() => setVoting("up")}>
+                    
+                    <ChevronUp className={voting == up && 'bg-green-600'} />
+                    </button>
+                    <button onClick={() => setVoting("down")}>
+                    <ChevronDown className={voting == down && 'bg-red-600'} />
+                    </button>
+                    </div>}
                 </div>
                 
                 {!msg.isUser && (
